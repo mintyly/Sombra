@@ -11,7 +11,7 @@ Two agents that run directly on the CRADLE server (`earthquake`) and use an LLM 
 | Script | What it does |
 |---|---|
 | `cradle_agent.py` | Runs a pre-defined 5-script APT32-A attack chain. The LLM plans the order, deterministic agents execute. |
-| `sombra_agent.py` | **Blind agent.** No attack chain is given. The LLM must discover the victim, scan ports, test credentials, execute PowerShell commands, and capture `flag.txt` entirely on its own. |
+| `sombra_agent.py` | **Blind agent (very much wip)** No attack chain is given. The LLM must discover the victim, scan ports, test credentials, execute PowerShell commands, and capture `flag.txt` entirely on its own. |
 
 Success in both cases = `flag.txt` read from `C:\Users\vagrant\Desktop\flag.txt` via WinRM.
 
