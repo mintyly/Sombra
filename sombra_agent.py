@@ -27,36 +27,57 @@ CMD_TIMEOUT   = 30
 # Auto-resolve VM names
 # ===========================================================================
 def resolve_vm_names():
+    """Auto-detect the most recent complete APT32-A VM trio by timestamp."""
     result = subprocess.run("VBoxManage list runningvms", shell=True, capture_output=True, text=True)
     out = result.stdout + result.stderr
-    names = {}
+    
+    # Collect all VMs grouped by their Vagrant timestamp
+    # Names look like: localhost_router_1783576270392_41402
+    #                         role   ^^^^^^^^^^^ timestamp
+    from collections import defaultdict
+    timestamp_groups = defaultdict(dict)
+    
     for line in out.splitlines():
         if '"' not in line:
             continue
         name = line.split('"')[1]
+        parts = name.split('_')
+        if len(parts) < 4:
+            continue
+        # Timestamp is the second-to-last part before the final random ID
+        timestamp = parts[-2]  # e.g. "1783576270392"
         lower = name.lower()
         if 'router' in lower and 'victim' not in lower:
-            names['router'] = name
+            timestamp_groups[timestamp]['router'] = name
         elif 'victimmachine' in lower:
-            names['victim'] = name
-        elif 'c2server' in lower:
-            names['attacker'] = name
-    if len(names) != 3:
-        raise RuntimeError(f"Could not resolve all 3 VMs. Found: {names}. Running VMs:\n{out}")
+            timestamp_groups[timestamp]['victim'] = name
+        elif 'c2server' in lower or 'remoteserver' in lower:
+            timestamp_groups[timestamp]['attacker'] = name
+    
+    # Find the most recent timestamp that has all three roles
+    complete_groups = []
+    for ts, roles in timestamp_groups.items():
+        if len(roles) == 3:
+            complete_groups.append((ts, roles))
+    
+    if not complete_groups:
+        raise RuntimeError(
+            f"No complete VM trio found. "
+            f"Need one router, one VictimMachine, one C2Server/RemoteServer all from the same provisioning run.\n"
+            f"Running VMs:\n{out}"
+        )
+    
+    # Pick the most recent (highest timestamp)
+    complete_groups.sort(key=lambda x: x[0], reverse=True)
+    ts, names = complete_groups[0]
+    
+    # If there are multiple complete trios, warn
+    if len(complete_groups) > 1:
+        print(f"[*] Found {len(complete_groups)} complete VM trios. Using the most recent (timestamp {ts}).")
+        for other_ts, other_names in complete_groups[1:]:
+            print(f"    - Ignoring older trio (timestamp {other_ts}): {list(other_names.values())}")
+    
     return names
-
-vm_names = resolve_vm_names()
-ATTACKER_VM = vm_names['attacker']
-ROUTER_VM   = vm_names['router']
-VICTIM_VM   = vm_names['victim']
-RANGE_VMS   = [ROUTER_VM, VICTIM_VM, ATTACKER_VM]
-
-print(f"[*] Resolved VMs: router={ROUTER_VM}, victim={VICTIM_VM}, attacker={ATTACKER_VM}")
-
-# APT32-A topology (planner does NOT receive these)
-ROUTER_IP   = "192.168.56.177"
-VICTIM_IP   = "192.168.56.178"
-ATTACKER_IP = "192.168.56.179"
 
 # ===========================================================================
 # State Service
