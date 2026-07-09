@@ -79,6 +79,19 @@ def resolve_vm_names():
     
     return names
 
+vm_names = resolve_vm_names()
+ATTACKER_VM = vm_names['attacker']
+ROUTER_VM   = vm_names['router']
+VICTIM_VM   = vm_names['victim']
+RANGE_VMS   = [ROUTER_VM, VICTIM_VM, ATTACKER_VM]
+
+print(f"[*] Resolved VMs: router={ROUTER_VM}, victim={VICTIM_VM}, attacker={ATTACKER_VM}")
+
+# APT32-A topology (planner does NOT receive these)
+ROUTER_IP   = "192.168.56.177"
+VICTIM_IP   = "192.168.56.178"
+ATTACKER_IP = "192.168.56.179"
+
 # ===========================================================================
 # State Service
 # ===========================================================================
