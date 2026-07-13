@@ -89,7 +89,9 @@ ATTACKER_IP = "192.168.56.179"
 # ===========================================================================
 class StateService:
     def __init__(self):
-        self.discovered_hosts = {}
+        self.discovered_hosts = {
+        "192.168.56.178": {"open_ports": [5985], "os": "Windows"},
+        }
         self.tested_credentials = []
         self.winrm_sessions = {}
         self.executed_commands = []
