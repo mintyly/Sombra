@@ -6,6 +6,7 @@ Success = flag.txt captured from VictimMachine desktop.
 """
 import argparse
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -24,27 +25,52 @@ SNAPSHOT_NAME = "clean"
 CMD_TIMEOUT   = 30
 
 # ===========================================================================
-# Auto-resolve VM names
+# VM name resolution — interactive picker
 # ===========================================================================
 def resolve_vm_names():
-    """Find one router, one VictimMachine, one C2Server/RemoteServer from running VMs."""
+    """Let the user pick which VM is which from all running VMs."""
     result = subprocess.run("VBoxManage list runningvms", shell=True, capture_output=True, text=True)
     out = result.stdout + result.stderr
-    names = {"router": None, "victim": None, "attacker": None}
+
+    all_vms = []
     for line in out.splitlines():
-        if '"' not in line:
-            continue
-        name = line.split('"')[1]
-        lower = name.lower()
-        if 'router' in lower and 'victim' not in lower and not names["router"]:
-            names["router"] = name
-        elif 'victimmachine' in lower and not names["victim"]:
-            names["victim"] = name
-        elif ('c2server' in lower or 'remoteserver' in lower) and not names["attacker"]:
-            names["attacker"] = name
-    missing = [k for k, v in names.items() if v is None]
-    if missing:
-        raise RuntimeError(f"Missing VMs: {missing}. Running VMs:\n{out}")
+        if '"' in line:
+            all_vms.append(line.split('"')[1])
+
+    if not all_vms:
+        raise RuntimeError("No running VMs found. Run vagrant up first.")
+
+    print("\n[*] Running VMs:")
+    for i, name in enumerate(all_vms):
+        print(f"    [{i}] {name}")
+
+    print("\n[*] Select VMs by number (or type part of the name):")
+
+    def pick_vm(prompt, role_hint):
+        while True:
+            choice = input(f"    {prompt}: ").strip()
+            # Try as index
+            try:
+                idx = int(choice)
+                if 0 <= idx < len(all_vms):
+                    return all_vms[idx]
+            except ValueError:
+                pass
+            # Try as name substring
+            matches = [vm for vm in all_vms if choice.lower() in vm.lower()]
+            if len(matches) == 1:
+                return matches[0]
+            elif len(matches) > 1:
+                print(f"      Multiple matches: {matches}. Be more specific.")
+            else:
+                print(f"      No match for '{choice}'. Try again.")
+
+    router   = pick_vm("Router VM", "router")
+    victim   = pick_vm("VictimMachine VM", "victim")
+    attacker = pick_vm("C2Server/Attacker VM", "c2server or remoteserver")
+
+    names = {"router": router, "victim": victim, "attacker": attacker}
+    print(f"\n[*] Selected: router={router}, victim={victim}, attacker={attacker}")
     return names
 
 vm_names = resolve_vm_names()
@@ -52,8 +78,6 @@ ATTACKER_VM = vm_names['attacker']
 ROUTER_VM   = vm_names['router']
 VICTIM_VM   = vm_names['victim']
 RANGE_VMS   = [ROUTER_VM, VICTIM_VM, ATTACKER_VM]
-
-print(f"[*] Resolved VMs: router={ROUTER_VM}, victim={VICTIM_VM}, attacker={ATTACKER_VM}")
 
 # APT32-A topology (planner does NOT receive these)
 ROUTER_IP   = "192.168.56.177"
@@ -151,7 +175,6 @@ def agent_scan_network(state: StateService) -> dict:
         return {"success": False, "output": "nmap not installed. Run 'install_toolkit' first."}
 
     subnet = state.current_subnet
-    # Use specific Windows-related ports to actually find the victim
     out = guest_bash(ATTACKER_VM, f"nmap -T4 -p 22,445,3389,5985,5986 --open {subnet} 2>&1")
 
     if "command not found" in out.lower():
