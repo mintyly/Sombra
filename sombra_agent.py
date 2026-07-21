@@ -86,6 +86,14 @@ ROUTER_IP   = "192.168.56.177"
 VICTIM_IP   = "192.168.56.178"
 ATTACKER_IP = "192.168.56.179"
 
+# Hard out-of-scope list — these are the VirtualBox host-only gateway addresses for
+# `earthquake` itself (the real server this script runs on), not range VMs. They sit
+# in the same /24s the agent scans, so without an explicit exclusion the planner will
+# happily nmap-scan and credential-guess against the real host machine. Excluded at
+# both the nmap level (never scanned) and the task level (never targeted even if the
+# planner names the IP directly) so this can't be bypassed by a bad LLM decision.
+OUT_OF_SCOPE_IPS = {"192.168.56.1", "192.168.57.1"}
+
 # ===========================================================================
 # State Service
 # ===========================================================================
@@ -182,7 +190,13 @@ def agent_scan_network(state: StateService) -> dict:
         return {"success": False, "output": "nmap not installed. Run 'install_toolkit' first."}
 
     subnet = state.current_subnet
-    out = guest_bash(ATTACKER_VM, f"nmap -T4 -p 22,445,3389,5985,5986 --open {subnet} 2>&1")
+    exclude = ",".join(sorted(OUT_OF_SCOPE_IPS))
+    # -Pn: skip host-discovery ping and probe the ports directly. Without it, nmap
+    # marks any host that doesn't answer ICMP echo as "down" and never port-scans
+    # it — Windows Firewall blocks ICMP by default, so the real Windows target
+    # was silently dropped from every scan despite port 5985 being reachable.
+    out = guest_bash(ATTACKER_VM,
+                     f"nmap -T4 -Pn -p 22,445,3389,5985,5986 --exclude {exclude} --open {subnet} 2>&1")
 
     if "command not found" in out.lower():
         return {"success": False, "output": f"nmap not found. Install toolkit first.\n{out[:200]}"}
@@ -196,7 +210,11 @@ def agent_scan_network(state: StateService) -> dict:
             host_field = m.group(1).strip()
             ip_match = re.search(r'(\d+\.\d+\.\d+\.\d+)', host_field)
             if ip_match:
-                current_ip = ip_match.group(1)
+                ip = ip_match.group(1)
+                if ip in OUT_OF_SCOPE_IPS:
+                    current_ip = None  # ignore any port lines that follow for this host
+                    continue
+                current_ip = ip
                 if current_ip not in state.discovered_hosts:
                     state.discovered_hosts[current_ip] = {"open_ports": [], "os": "unknown"}
         if current_ip and '/tcp' in line and 'open' in line:
@@ -244,6 +262,9 @@ def agent_test_winrm(state: StateService, username: str = None, password: str = 
         return {"success": False,
                 "output": "Must supply 'username' and 'password' fields to guess credentials with."}
 
+    if target_ip in OUT_OF_SCOPE_IPS:
+        return {"success": False, "output": f"{target_ip} is out of scope. Refusing to target it."}
+
     if not target_ip:
         for ip, info in state.discovered_hosts.items():
             if 5985 in info.get('open_ports', []) and not state.winrm_sessions.get(ip):
@@ -286,6 +307,8 @@ def agent_test_winrm(state: StateService, username: str = None, password: str = 
 
 def agent_execute_powershell(state: StateService, command: str, target_ip: str = None) -> dict:
     """Execute an arbitrary PowerShell command on a compromised host."""
+    if target_ip in OUT_OF_SCOPE_IPS:
+        return {"success": False, "output": f"{target_ip} is out of scope. Refusing to target it."}
     if not target_ip:
         for ip, authed in state.winrm_sessions.items():
             if authed:
