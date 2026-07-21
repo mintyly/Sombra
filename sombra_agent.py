@@ -342,7 +342,10 @@ def agent_find_flag(state: StateService) -> dict:
                 "output": f"FLAG FOUND: {result3['output'].strip()}\nCall read_flag next."}
 
     return {"success": True, "found": False,
-            "output": "Flag not found. Try running: cmd /c \"dir C:\\Users\\vagrant\\Desktop\\flag.txt\""}
+            "output": "Flag not found. Try running: cmd /c \"dir C:\\Users\\vagrant\\Desktop\\flag.txt\"\n"
+                      f"--- raw attempt 1 (Desktop) ---\n{result.get('output', '').strip()[:300]}\n"
+                      f"--- raw attempt 2 (C:\\Users recurse) ---\n{result2.get('output', '').strip()[:300]}\n"
+                      f"--- raw attempt 3 (cmd dir /s) ---\n{result3.get('output', '').strip()[:300]}"}
 
 
 def agent_read_flag(state: StateService) -> dict:
