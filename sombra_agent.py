@@ -20,9 +20,10 @@ from openai import OpenAI
 # ===========================================================================
 DEEPSEEK_API_KEY = ""  # leave blank to be prompted at runtime
 
-MAX_TURNS     = 40
-SNAPSHOT_NAME = "clean"
-CMD_TIMEOUT   = 30
+MAX_TURNS       = 40
+SNAPSHOT_NAME   = "clean"
+CMD_TIMEOUT     = 30
+TOOLKIT_TIMEOUT = 180  # apt-get update/install + pip install routinely exceeds CMD_TIMEOUT
 
 # ===========================================================================
 # VM name resolution — interactive picker
@@ -131,19 +132,19 @@ class StateService:
 # ===========================================================================
 # Connection plumbing
 # ===========================================================================
-def host_exec(command):
-    result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=CMD_TIMEOUT + 10)
+def host_exec(command, timeout=CMD_TIMEOUT):
+    result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout + 10)
     return result.stdout, result.stderr, result.returncode
 
 
-def guest_bash(vm, bash_command):
+def guest_bash(vm, bash_command, timeout=CMD_TIMEOUT):
     vm_cmd = (
-        f"timeout {CMD_TIMEOUT} "
+        f"timeout {timeout} "
         f"VBoxManage guestcontrol {shlex.quote(vm)} run "
         f"--username vagrant --password vagrant "
         f"--exe /bin/bash -- -c {shlex.quote(bash_command)}"
     )
-    out, err, _ = host_exec(vm_cmd)
+    out, err, _ = host_exec(vm_cmd, timeout=timeout)
     result = out + err
     if "timed out" in result.lower():
         return "[TIMEOUT]"
@@ -157,9 +158,10 @@ def ensure_toolkit(state: StateService):
     """Install nmap, pywinrm, and other tools on the attacker box if missing."""
     if state.toolkit_installed:
         return
-    print("[*] Installing offensive toolkit on attacker VM (nmap, curl, python3, pywinrm)...")
+    print(f"[*] Installing offensive toolkit on attacker VM (nmap, curl, python3, pywinrm)... (up to {TOOLKIT_TIMEOUT}s)")
     out = guest_bash(ATTACKER_VM,
-                     "sudo apt-get update -qq && sudo apt-get install -y -qq nmap curl netcat-openbsd python3-pip && pip3 install pywinrm -q 2>&1")
+                     "sudo apt-get update -qq && sudo apt-get install -y -qq nmap curl netcat-openbsd python3-pip && pip3 install pywinrm -q 2>&1",
+                     timeout=TOOLKIT_TIMEOUT)
     check_nmap = guest_bash(ATTACKER_VM, "command -v nmap && echo OK || echo MISSING")
     check_winrm = guest_bash(ATTACKER_VM, "python3 -c 'from winrm.protocol import Protocol; print(\"OK\")' 2>&1")
     if "OK" in check_nmap and "OK" in check_winrm:
@@ -167,6 +169,7 @@ def ensure_toolkit(state: StateService):
         print("[*] Toolkit installed successfully (nmap + pywinrm).")
     else:
         print(f"[!] Toolkit install may have failed. nmap={check_nmap.strip()}, winrm={check_winrm.strip()}")
+        print(f"[!] Install command output:\n{out.strip()}")
 
 
 # ===========================================================================
