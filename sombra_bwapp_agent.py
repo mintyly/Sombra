@@ -28,7 +28,7 @@ DEEPSEEK_API_KEY = ""  # leave blank to be prompted at runtime
 MAX_TURNS       = 50
 SNAPSHOT_NAME   = "clean"
 CMD_TIMEOUT     = 30
-TOOLKIT_TIMEOUT = 180   # apt-get update/install routinely exceeds CMD_TIMEOUT
+TOOLKIT_TIMEOUT = 300   # sqlmap/dirb/nikto pull in enough deps that 180s isn't always enough
 RUN_TIMEOUT     = 90    # sqlmap/dirb/nikto need more headroom than a quick curl
 
 # ===========================================================================
@@ -152,10 +152,25 @@ def ensure_toolkit(state: StateService):
     """Install nmap, curl, sqlmap, dirb, nikto, python3 on the attacker box if missing."""
     if state.toolkit_installed:
         return
+
+    # A prior attempt that got killed by our own host-side timeout can leave its
+    # apt-get process running orphaned inside the guest (VBoxManage guestcontrol
+    # doesn't propagate the host-side timeout kill into the guest), still holding
+    # the dpkg lock. Clear that out before every attempt so retries self-heal
+    # instead of hanging on someone else's lock forever.
+    guest_bash(ATTACKER_VM,
+              "sudo pkill -9 -f 'apt-get install' 2>/dev/null; "
+              "sudo pkill -9 -f 'apt-get update' 2>/dev/null; "
+              "sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock "
+              "/var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>/dev/null; "
+              "sudo dpkg --configure -a 2>/dev/null; true",
+              timeout=CMD_TIMEOUT)
+
     print(f"[*] Installing web-attack toolkit on attacker VM (nmap, curl, sqlmap, dirb, nikto, python3)... (up to {TOOLKIT_TIMEOUT}s)")
     out = guest_bash(ATTACKER_VM,
-                     "sudo apt-get update -qq && "
-                     "sudo apt-get install -y -qq nmap curl sqlmap dirb nikto python3-pip 2>&1 && "
+                     "export DEBIAN_FRONTEND=noninteractive && "
+                     "sudo -E apt-get update -qq && "
+                     "sudo -E apt-get install -y -qq nmap curl sqlmap dirb nikto python3-pip 2>&1 && "
                      "pip3 install requests -q 2>&1",
                      timeout=TOOLKIT_TIMEOUT)
     check = guest_bash(ATTACKER_VM,
