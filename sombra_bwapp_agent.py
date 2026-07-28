@@ -289,12 +289,23 @@ def agent_scan_network(state: StateService) -> dict:
     return {"success": True, "output": "\n".join(summary_parts) + f"\n\nRaw output:\n{out[:400]}"}
 
 
+def _references_out_of_scope_ip(command: str) -> bool:
+    # Plain substring matching is unsafe here: "192.168.56.1" is a substring of
+    # the real target "192.168.56.178", so a naive `ip in command` check refuses
+    # every legitimate command against the actual target too. Require that the
+    # IP isn't immediately flanked by another digit on either side.
+    for ip in OUT_OF_SCOPE_IPS:
+        if re.search(r'(?<!\d)' + re.escape(ip) + r'(?!\d)', command):
+            return True
+    return False
+
+
 def agent_run_command(state: StateService, command: str) -> dict:
     """Run an arbitrary bash command on the attacker box. Primary recon + exploitation primitive."""
-    if command in OUT_OF_SCOPE_IPS or (command and any(ip in command for ip in OUT_OF_SCOPE_IPS)):
-        return {"success": False, "output": "Refusing: command references an out-of-scope IP."}
     if not command:
         return {"success": False, "output": "Must supply a 'command' field."}
+    if _references_out_of_scope_ip(command):
+        return {"success": False, "output": "Refusing: command references an out-of-scope IP."}
 
     out = guest_bash(ATTACKER_VM, command, timeout=RUN_TIMEOUT)
     state.executed_commands.append(command)
