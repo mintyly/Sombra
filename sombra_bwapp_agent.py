@@ -173,26 +173,36 @@ def ensure_toolkit(state: StateService):
     # through the same NAT adapter works fine. Point the guest straight at a
     # public resolver instead of trusting the proxy, so this self-heals
     # regardless of host DNS quirks.
-    dns_fix = guest_bash(ATTACKER_VM,
-                        "iface=$(ip route show default | awk '{print $5; exit}'); "
-                        "echo \"default iface=$iface\"; "
-                        "sudo resolvectl dns \"$iface\" 8.8.8.8 1.1.1.1 2>&1; "
-                        "sudo resolvectl domain \"$iface\" '~.' 2>&1; "
-                        "getent hosts archive.ubuntu.com 2>&1 || echo DNS_STILL_BROKEN",
-                        timeout=CMD_TIMEOUT)
-    print(f"[*] DNS pre-flight check:\n{dns_fix.strip()}")
+    # `apt-get update` exits 0 even when some repo indices fail to fetch (it
+    # treats that as a warning, not fatal) — so checking apt's own exit code
+    # is not a reliable way to tell whether DNS actually works. Instead, loop
+    # setting the resolver and explicitly re-verify with `getent` each time,
+    # short-circuiting the moment resolution genuinely succeeds. `getent` can
+    # itself hang for several seconds against a still-broken resolver, so each
+    # attempt gets its own generous per-call timeout rather than sharing one
+    # tight budget across the whole loop.
+    dns_ok = False
+    for attempt in range(6):
+        iface_out = guest_bash(ATTACKER_VM, "ip route show default | awk '{print $5; exit}'", timeout=CMD_TIMEOUT)
+        iface = iface_out.strip().splitlines()[-1] if iface_out.strip() else "enp0s3"
+        guest_bash(ATTACKER_VM,
+                  f"sudo resolvectl dns {shlex.quote(iface)} 8.8.8.8 1.1.1.1 2>&1; "
+                  f"sudo resolvectl domain {shlex.quote(iface)} '~.' 2>&1",
+                  timeout=CMD_TIMEOUT)
+        check_dns = guest_bash(ATTACKER_VM, "getent hosts archive.ubuntu.com 2>&1", timeout=15)
+        print(f"[*] DNS check (attempt {attempt + 1}/6, iface={iface}): {check_dns.strip() or '(no output)'}")
+        if re.search(r'\d+\.\d+\.\d+\.\d+', check_dns):
+            dns_ok = True
+            break
+        time.sleep(5)
+
+    if not dns_ok:
+        print("[!] DNS never came up after 6 attempts — toolkit install will likely fail too.")
 
     print(f"[*] Installing web-attack toolkit on attacker VM (nmap, curl, sqlmap, dirb, nikto, python3)... (up to {TOOLKIT_TIMEOUT}s)")
     out = guest_bash(ATTACKER_VM,
                      "export DEBIAN_FRONTEND=noninteractive; "
-                     # Right after a snapshot restore + boot, DNS/DHCP isn't always ready
-                     # immediately — retry apt-get update through transient network blips
-                     # instead of failing on the first "Temporary failure resolving ...".
-                     "ok=0; for i in 1 2 3 4 5; do "
-                     "  sudo -E apt-get update -qq 2>&1 && { ok=1; break; }; "
-                     "  echo '[retry] apt-get update failed, waiting for network...'; sleep 10; "
-                     "done; "
-                     "if [ \"$ok\" != \"1\" ]; then echo 'APT_UPDATE_FAILED_AFTER_RETRIES'; exit 1; fi; "
+                     "sudo -E apt-get update -qq 2>&1; "
                      "sudo -E apt-get install -y -qq nmap curl sqlmap dirb nikto python3-pip 2>&1 && "
                      "pip3 install requests -q 2>&1",
                      timeout=TOOLKIT_TIMEOUT)
