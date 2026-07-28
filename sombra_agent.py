@@ -141,7 +141,11 @@ class StateService:
 # Connection plumbing
 # ===========================================================================
 def host_exec(command, timeout=CMD_TIMEOUT):
-    result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout + 10)
+    # PowerShell/WinRM output can contain bytes that aren't valid UTF-8; text=True
+    # decodes strictly by default and would crash the whole harness on the first
+    # bad byte, so replace invalid bytes instead of raising.
+    result = subprocess.run(command, shell=True, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace", timeout=timeout + 10)
     return result.stdout, result.stderr, result.returncode
 
 
