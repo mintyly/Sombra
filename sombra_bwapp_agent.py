@@ -511,14 +511,25 @@ def main():
     success = False
     last_task = None
     repeat_count = 0
+    # A malformed-JSON response from the planner isn't a decision it made — it's
+    # an API-level hiccup — so it shouldn't cost a turn out of the real budget.
+    # Still hard-capped so a persistently broken API can't loop forever.
+    wasted_attempts = 0
+    MAX_WASTED_ATTEMPTS = 20
 
     try:
-        for turn in range(args.max_turns):
+        while turn < args.max_turns:
             task = get_next_task(state)
             if not task or "task" not in task or not task["task"]:
-                print(f"  [!] No valid task from planner, retrying...")
+                wasted_attempts += 1
+                print(f"  [!] No valid task from planner, retrying... ({wasted_attempts}/{MAX_WASTED_ATTEMPTS} wasted attempts)")
+                if wasted_attempts >= MAX_WASTED_ATTEMPTS:
+                    print("  [!] Planner API is persistently failing to return valid JSON. Giving up.")
+                    break
                 time.sleep(2)
                 continue
+            wasted_attempts = 0
+            turn += 1
 
             task_name = task["task"]
             rationale = task.get("rationale", "")
@@ -569,7 +580,7 @@ def main():
             time.sleep(1)
 
         if not success:
-            print(f"\n[*] Did not capture the flag in {turn + 1} turns.")
+            print(f"\n[*] Did not capture the flag in {turn} turns.")
         else:
             print(f"\n[!!!] SOMBRA MISSION COMPLETE.")
 
