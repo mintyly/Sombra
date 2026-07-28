@@ -121,11 +121,20 @@ class StateService:
             lines.append("  No hosts discovered yet.")
         lines.append(f"Commands run so far: {len(self.command_history)}")
         if self.command_history:
-            earlier = self.command_history[-6:-1]
+            earlier = self.command_history[-9:-1]
             if earlier:
-                lines.append("Earlier commands (output omitted — you already saw these results):")
+                # A one-line digest per older command, not just the bare command
+                # string — without this, a false belief formed several turns ago
+                # ("I uploaded a working webshell") never gets contradicted by
+                # evidence, because the actual output that would disprove it has
+                # already scrolled out of view. Cheap in tokens, closes a real
+                # hallucination path.
+                lines.append("Earlier commands with a short digest of what they actually returned "
+                             "(verify against these before assuming something still holds):")
                 for h in earlier:
+                    digest = " ".join(h["output"].split())[:120]
                     lines.append(f"  $ {h['command']}")
+                    lines.append(f"    -> {digest}")
             last = self.command_history[-1]
             lines.append("Most recent command and its FULL result — do not re-run this to \"check\" it again:")
             lines.append(f"  $ {last['command']}")
@@ -441,6 +450,10 @@ CRITICAL RULES:
 - Don't mix sudo and non-sudo across related commands. A file created with `sudo` may end up unreadable to you
   without `sudo` afterward (and /root/ is never traversable as a normal user at all). If you don't specifically
   need root, don't use sudo — scan/output files under /tmp/ don't require it.
+- Trust the actual command output shown to you over your own memory of what you intended or believe already
+  happened. If you think you previously got a webshell/upload/foothold working, look at the digest of that
+  command's real result before building further steps on it — a 404 or an error means it did NOT work, even if
+  a later step assumed it did. Don't keep acting on something the evidence contradicts.
 - NEVER repeat the exact same task/command more than twice in a row. If something isn't working, pivot to a
   different approach.
 - The flag is detected automatically in any command's output — you don't need a special "report" step, just get
