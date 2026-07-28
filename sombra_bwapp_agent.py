@@ -168,8 +168,15 @@ def ensure_toolkit(state: StateService):
 
     print(f"[*] Installing web-attack toolkit on attacker VM (nmap, curl, sqlmap, dirb, nikto, python3)... (up to {TOOLKIT_TIMEOUT}s)")
     out = guest_bash(ATTACKER_VM,
-                     "export DEBIAN_FRONTEND=noninteractive && "
-                     "sudo -E apt-get update -qq && "
+                     "export DEBIAN_FRONTEND=noninteractive; "
+                     # Right after a snapshot restore + boot, DNS/DHCP isn't always ready
+                     # immediately — retry apt-get update through transient network blips
+                     # instead of failing on the first "Temporary failure resolving ...".
+                     "ok=0; for i in 1 2 3 4 5; do "
+                     "  sudo -E apt-get update -qq 2>&1 && { ok=1; break; }; "
+                     "  echo '[retry] apt-get update failed, waiting for network...'; sleep 10; "
+                     "done; "
+                     "if [ \"$ok\" != \"1\" ]; then echo 'APT_UPDATE_FAILED_AFTER_RETRIES'; exit 1; fi; "
                      "sudo -E apt-get install -y -qq nmap curl sqlmap dirb nikto python3-pip 2>&1 && "
                      "pip3 install requests -q 2>&1",
                      timeout=TOOLKIT_TIMEOUT)
