@@ -187,6 +187,21 @@ def ensure_toolkit(state: StateService):
         state.toolkit_installed = True
         print("[*] Toolkit installed successfully (nmap + curl + sqlmap + dirb + nikto).")
     else:
+        print("[!] Toolkit install failed — dumping network diagnostics from the attacker VM...")
+        diag = guest_bash(ATTACKER_VM,
+                          "echo '--- ip addr ---'; ip addr show; "
+                          "echo '--- ip route ---'; ip route show; "
+                          "echo '--- /etc/resolv.conf ---'; cat /etc/resolv.conf; "
+                          "echo '--- systemd-resolved status ---'; systemctl is-active systemd-resolved 2>&1; "
+                          "echo '--- raw DNS lookup (getent) ---'; getent hosts archive.ubuntu.com 2>&1; "
+                          "echo '--- ping by IP (bypasses DNS) ---'; ping -c 2 -W 3 8.8.8.8 2>&1; "
+                          "echo '--- ping by name (needs DNS) ---'; ping -c 2 -W 3 archive.ubuntu.com 2>&1; "
+                          "echo '--- iptables nat table ---'; sudo iptables -t nat -L -n -v 2>&1; "
+                          "echo '--- default gateway reachability ---'; "
+                          "gw=$(ip route show default | awk '{print $3}'); echo \"gateway=$gw\"; "
+                          "ping -c 2 -W 3 \"$gw\" 2>&1",
+                          timeout=CMD_TIMEOUT)
+        print(diag)
         print(f"[!] Toolkit install may have failed. check={check.strip()}")
         print(f"[!] Install command output:\n{out.strip()[:800]}")
 
