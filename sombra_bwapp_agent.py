@@ -166,6 +166,22 @@ def ensure_toolkit(state: StateService):
               "sudo dpkg --configure -a 2>/dev/null; true",
               timeout=CMD_TIMEOUT)
 
+    # VirtualBox's NAT DNS proxy (10.0.2.3) forwards guest DNS queries through
+    # whatever resolver the *host* uses. If the host runs systemd-resolved (DNS
+    # server = its own loopback stub, 127.0.0.53), the proxy has nothing real to
+    # forward to and guest DNS silently breaks — even though raw IP routing
+    # through the same NAT adapter works fine. Point the guest straight at a
+    # public resolver instead of trusting the proxy, so this self-heals
+    # regardless of host DNS quirks.
+    dns_fix = guest_bash(ATTACKER_VM,
+                        "iface=$(ip route show default | awk '{print $5; exit}'); "
+                        "echo \"default iface=$iface\"; "
+                        "sudo resolvectl dns \"$iface\" 8.8.8.8 1.1.1.1 2>&1; "
+                        "sudo resolvectl domain \"$iface\" '~.' 2>&1; "
+                        "getent hosts archive.ubuntu.com 2>&1 || echo DNS_STILL_BROKEN",
+                        timeout=CMD_TIMEOUT)
+    print(f"[*] DNS pre-flight check:\n{dns_fix.strip()}")
+
     print(f"[*] Installing web-attack toolkit on attacker VM (nmap, curl, sqlmap, dirb, nikto, python3)... (up to {TOOLKIT_TIMEOUT}s)")
     out = guest_bash(ATTACKER_VM,
                      "export DEBIAN_FRONTEND=noninteractive; "
