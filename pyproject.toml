@@ -17,6 +17,11 @@ keywords = ["red-team", "llm-agent", "autonomous", "security", "cyber-range"]
 dependencies = [
     "openai==1.51.0",
     "pywinrm==0.4.3",
+    # openai==1.51.0 builds its httpx client with the old `proxies=` kwarg,
+    # which httpx removed in 0.28.0 (TypeError: unexpected keyword argument
+    # 'proxies'). httpx isn't a direct dependency of ours, so without this pin
+    # pip is free to resolve whatever newer httpx is available and break it.
+    "httpx<0.28",
 ]
 
 [project.optional-dependencies]
