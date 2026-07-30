@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sombra"
+version = "1.0.0"
+description = "Blind autonomous LLM red-team harness (planner/executor over an isolated cyber range)"
+readme = "README.md"
+requires-python = ">=3.8"  # earthquake has both 3.9.5 and 3.8.10 in play; verified 3.8-clean via ast.parse(feature_version=(3,8))
+license = { text = "MIT" }
+authors = [{ name = "June Ong", email = "june@june.ong" }]
+keywords = ["red-team", "llm-agent", "autonomous", "security", "cyber-range"]
+
+# Pinned so a clone reproduces the environment instead of relying on
+# "the system python on earthquake happens to have openai".
+dependencies = [
+    "openai==1.51.0",
+    "pywinrm==0.4.3",
+    # openai==1.51.0 builds its httpx client with the old `proxies=` kwarg,
+    # which httpx removed in 0.28.0 (TypeError: unexpected keyword argument
+    # 'proxies'). httpx isn't a direct dependency of ours, so without this pin
+    # pip is free to resolve whatever newer httpx is available and break it.
+    "httpx<0.28",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.3",
+    "ruff==0.6.9",
+    "mypy==1.11.2",
+]
+
+[project.scripts]
+sombra = "sombra.cli:main"
+
+[project.urls]
+Homepage = "https://june.ong"
+Repository = "https://github.com/mintyly/sombra"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.mypy]
+python_version = "3.8"
+ignore_missing_imports = true
+warn_unused_ignores = true
+# Without this, mypy walks into transitive third-party dependencies (anyio,
+# pydantic — pulled in via httpx/openai) and tries to parse their actual source
+# under our python_version=3.8 floor. Those packages use match/case and
+# parenthesized context managers internally, which is a hard SyntaxError under
+# 3.8 parsing rules and aborts the whole run. "skip" means third-party modules
+# are only used at the interface (typed as Any where unknown), never re-parsed
+# — our own src/sombra/* files are still fully checked since they're passed
+# directly as targets, not reached only by import-following.
+follow_imports = "skip"
