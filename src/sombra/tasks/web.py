@@ -12,6 +12,7 @@ from functools import partial
 
 from ..flags import find_flag
 from ..net import clear_apt_locks, heal_dns, parse_nmap
+from ..state import WebState
 from . import TaskContext
 
 # Known intentionally-vulnerable training-app directory names, in their real
@@ -28,7 +29,7 @@ _VULN_APP_NAMES = [
 _WEB_PORTS = "21,22,80,443,3306,8080"
 
 
-def _ensure_toolkit(ctx: TaskContext) -> bool:
+def _ensure_toolkit(ctx: TaskContext[WebState]) -> bool:
     if ctx.state.toolkit_installed:
         return True
 
@@ -62,13 +63,13 @@ def _ensure_toolkit(ctx: TaskContext) -> bool:
     return True
 
 
-def install_toolkit(ctx: TaskContext, task: dict) -> dict:
+def install_toolkit(ctx: TaskContext[WebState], task: dict) -> dict:
     if _ensure_toolkit(ctx):
         return {"success": True, "output": "Toolkit installed: nmap, curl, sqlmap, dirb, nikto, python3+requests"}
     return {"success": False, "output": "Toolkit installation failed. Check network connectivity."}
 
 
-def scan_network(ctx: TaskContext, task: dict) -> dict:
+def scan_network(ctx: TaskContext[WebState], task: dict) -> dict:
     if not ctx.state.toolkit_installed:
         return {"success": False, "output": "nmap not installed. Run 'install_toolkit' first."}
 
@@ -101,7 +102,7 @@ def scan_network(ctx: TaskContext, task: dict) -> dict:
     return {"success": True, "output": "\n".join(parts) + f"\n\nRaw output:\n{out[:400]}"}
 
 
-def run_command(ctx: TaskContext, task: dict) -> dict:
+def run_command(ctx: TaskContext[WebState], task: dict) -> dict:
     """Run arbitrary bash on the attacker box — the primary recon + exploit tool."""
     command = task.get("command", "")
     if not command:
@@ -125,7 +126,7 @@ def run_command(ctx: TaskContext, task: dict) -> dict:
     return {"success": True, "output": truncated}
 
 
-def done(ctx: TaskContext, task: dict) -> dict:
+def done(ctx: TaskContext[WebState], task: dict) -> dict:
     return {"success": True, "output": "Planner signaled completion."}
 
 

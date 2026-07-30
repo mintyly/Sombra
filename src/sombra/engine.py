@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 from .audit import AuditLog, get_logger
 from .planner import Planner
@@ -41,8 +41,8 @@ class RunResult:
 class Engine:
     def __init__(
         self,
-        ctx: TaskContext,
-        registry: dict[str, TaskFn],
+        ctx: TaskContext[Any],
+        registry: Mapping[str, TaskFn],
         planner: Planner,
         range_vms: Sequence[str],
         audit: AuditLog,

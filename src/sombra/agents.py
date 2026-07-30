@@ -9,7 +9,7 @@ fifth agent is a spec entry, not another 600-line copy of the loop.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Sequence
+from typing import Callable, Mapping, Sequence
 
 from . import prompts
 from .audit import AuditLog, get_logger
@@ -32,7 +32,7 @@ class AgentSpec:
     roles: Sequence[str]           # VM roles to resolve; first-listed attacker role must be "attacker"
     attacker_role: str
     state_cls: type[BaseState]
-    registry: dict[str, TaskFn]
+    registry: Mapping[str, TaskFn]  # Mapping (not Dict) is covariant in its value type
     prompt_fn: Callable[[str], str]
     default_max_turns: int = 80
     range_roles: Sequence[str] = field(default=())  # which resolved VMs get snapshotted

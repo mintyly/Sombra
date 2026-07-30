@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 
 from ..flags import find_flag
+from ..state import ScriptedState
 from . import TaskContext
 
 ATTACK_SCRIPTS = [
@@ -24,14 +25,14 @@ VICTIM_IP = "192.168.56.178"
 ARTIFACT_DIR = "/home/vagrant/artifact/APT32-A"
 
 
-def check_webhost(ctx: TaskContext, task: dict) -> dict:
+def check_webhost(ctx: TaskContext[ScriptedState], task: dict) -> dict:
     port = ctx.state.webhost_port
     out = ctx.vbox.guest_bash(ctx.attacker_vm, f"ss -tlnp | grep {port}")
     ctx.state.webhost_running = f":{port}" in out and "LISTEN" in out
     return {"success": True, "output": f"Webhost {'running' if ctx.state.webhost_running else 'not running'} on {port}"}
 
 
-def start_webhost(ctx: TaskContext, task: dict) -> dict:
+def start_webhost(ctx: TaskContext[ScriptedState], task: dict) -> dict:
     if ctx.state.webhost_running:
         return {"success": True, "output": "Webhost already running, skipping."}
     ctx.vbox.guest_bash(ctx.attacker_vm, f"nohup python3 {ARTIFACT_DIR}/webhost.py > /dev/null 2>&1 &")
@@ -43,7 +44,7 @@ def start_webhost(ctx: TaskContext, task: dict) -> dict:
     return {"success": False, "output": "Failed to start webhost."}
 
 
-def start_backdoor(ctx: TaskContext, task: dict) -> dict:
+def start_backdoor(ctx: TaskContext[ScriptedState], task: dict) -> dict:
     if ctx.state.backdoor_running:
         return {"success": True, "output": "Backdoor already running, skipping."}
     ctx.vbox.guest_bash(ctx.attacker_vm, f"nohup {ARTIFACT_DIR}/backdoor.sh > /dev/null 2>&1 &")
@@ -52,7 +53,7 @@ def start_backdoor(ctx: TaskContext, task: dict) -> dict:
     return {"success": True, "output": "Backdoor listener started."}
 
 
-def install_pywinrm(ctx: TaskContext, task: dict) -> dict:
+def install_pywinrm(ctx: TaskContext[ScriptedState], task: dict) -> dict:
     if ctx.state.pywinrm_installed:
         return {"success": True, "output": "pywinrm already installed."}
     ctx.vbox.guest_bash(
@@ -65,7 +66,7 @@ def install_pywinrm(ctx: TaskContext, task: dict) -> dict:
     return {"success": ctx.state.pywinrm_installed, "output": "pywinrm " + ("installed." if ctx.state.pywinrm_installed else "install failed.")}
 
 
-def execute_script(ctx: TaskContext, task: dict) -> dict:
+def execute_script(ctx: TaskContext[ScriptedState], task: dict) -> dict:
     if ctx.state.current_script_index >= len(ATTACK_SCRIPTS):
         return {"success": True, "output": "All scripts already executed."}
     script = ATTACK_SCRIPTS[ctx.state.current_script_index]
@@ -89,7 +90,7 @@ def execute_script(ctx: TaskContext, task: dict) -> dict:
     return {"success": False, "output": f"Failed: {out[:300]}"}
 
 
-def check_callback(ctx: TaskContext, task: dict) -> dict:
+def check_callback(ctx: TaskContext[ScriptedState], task: dict) -> dict:
     log_out = ctx.vbox.guest_bash(ctx.attacker_vm, f"wc -l < {ARTIFACT_DIR}/cloudflare.log 2>/dev/null || echo 0")
     try:
         lines = int(log_out.strip().splitlines()[-1])
@@ -105,7 +106,7 @@ def check_callback(ctx: TaskContext, task: dict) -> dict:
     return {"success": True, "output": "No callback detected yet."}
 
 
-def check_flag(ctx: TaskContext, task: dict) -> dict:
+def check_flag(ctx: TaskContext[ScriptedState], task: dict) -> dict:
     flag_path = "C:\\\\\\\\Users\\\\\\\\vagrant\\\\\\\\Desktop\\\\\\\\flag.txt"
     py = (
         f'python3 -c "'
@@ -126,7 +127,7 @@ def check_flag(ctx: TaskContext, task: dict) -> dict:
     return {"success": True, "output": f"No flag pattern. Output: {out.strip()[:200]}"}
 
 
-def verify_compromise(ctx: TaskContext, task: dict) -> dict:
+def verify_compromise(ctx: TaskContext[ScriptedState], task: dict) -> dict:
     evidence = []
     if ".ps1" in ctx.vbox.guest_cmd(ctx.vms["victim"], "dir C:\\artifact\\APT32-A\\*.ps1 2>nul"):
         evidence.append("Artifact directory accessible; attack scripts present")
@@ -139,7 +140,7 @@ def verify_compromise(ctx: TaskContext, task: dict) -> dict:
     return {"success": True, "output": "Could not independently verify compromise."}
 
 
-def done(ctx: TaskContext, task: dict) -> dict:
+def done(ctx: TaskContext[ScriptedState], task: dict) -> dict:
     return {"success": True, "output": "Planner signaled completion."}
 
 

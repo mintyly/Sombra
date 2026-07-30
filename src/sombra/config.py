@@ -16,6 +16,7 @@ import json
 import os
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import Mapping
 
 from .scope import Scope
 
@@ -58,7 +59,7 @@ class AgentConfig:
         cls,
         *,
         cli: dict | None = None,
-        env: dict | None = None,
+        env: Mapping[str, str] | None = None,
         config_file: str | Path | None = None,
     ) -> AgentConfig:
         """Build a config, applying file, then env, then CLI (highest wins).

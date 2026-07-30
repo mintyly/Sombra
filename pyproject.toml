@@ -58,3 +58,12 @@ ignore = ["E501"]  # line length handled by formatter
 python_version = "3.8"
 ignore_missing_imports = true
 warn_unused_ignores = true
+# Without this, mypy walks into transitive third-party dependencies (anyio,
+# pydantic — pulled in via httpx/openai) and tries to parse their actual source
+# under our python_version=3.8 floor. Those packages use match/case and
+# parenthesized context managers internally, which is a hard SyntaxError under
+# 3.8 parsing rules and aborts the whole run. "skip" means third-party modules
+# are only used at the interface (typed as Any where unknown), never re-parsed
+# — our own src/sombra/* files are still fully checked since they're passed
+# directly as targets, not reached only by import-following.
+follow_imports = "skip"

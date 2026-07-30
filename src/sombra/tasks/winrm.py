@@ -13,6 +13,7 @@ from functools import partial
 
 from ..flags import find_flag as extract_flag
 from ..net import parse_nmap
+from ..state import WinRMState
 from . import TaskContext
 
 _WINRM_PORTS = "22,445,3389,5985,5986"
@@ -36,14 +37,14 @@ def _winrm_python(target_ip: str, user_b64: str, pass_b64: str, inner_cmd: str) 
     )
 
 
-def _authed_target(ctx: TaskContext) -> str | None:
+def _authed_target(ctx: TaskContext[WinRMState]) -> str | None:
     for ip, authed in ctx.state.winrm_sessions.items():
         if authed:
             return ip
     return None
 
 
-def install_toolkit(ctx: TaskContext, task: dict) -> dict:
+def install_toolkit(ctx: TaskContext[WinRMState], task: dict) -> dict:
     if ctx.state.toolkit_installed:
         return {"success": True, "output": "Toolkit already installed."}
     run = partial(ctx.vbox.guest_bash, ctx.attacker_vm)
@@ -61,7 +62,7 @@ def install_toolkit(ctx: TaskContext, task: dict) -> dict:
     return {"success": False, "output": "Toolkit installation failed. Check network connectivity."}
 
 
-def scan_network(ctx: TaskContext, task: dict) -> dict:
+def scan_network(ctx: TaskContext[WinRMState], task: dict) -> dict:
     if not ctx.state.toolkit_installed:
         return {"success": False, "output": "nmap not installed. Run 'install_toolkit' first."}
     subnet = ctx.state.current_subnet
@@ -96,7 +97,7 @@ def scan_network(ctx: TaskContext, task: dict) -> dict:
     return {"success": True, "output": "\n".join(parts) + f"\n\nRaw output:\n{out[:300]}"}
 
 
-def test_winrm(ctx: TaskContext, task: dict) -> dict:
+def test_winrm(ctx: TaskContext[WinRMState], task: dict) -> dict:
     username, password = task.get("username"), task.get("password")
     target_ip = task.get("target_ip")
     if not username or not password:
@@ -126,7 +127,7 @@ def test_winrm(ctx: TaskContext, task: dict) -> dict:
     return {"success": False, "output": f"WinRM auth failed for {target_ip} {username}:{password}.\n{out[:300]}"}
 
 
-def execute_powershell(ctx: TaskContext, task: dict) -> dict:
+def execute_powershell(ctx: TaskContext[WinRMState], task: dict) -> dict:
     command = task.get("command", "hostname")
     target_ip = task.get("target_ip") or _authed_target(ctx)
     if target_ip and not ctx.scope.is_target_allowed(target_ip):
@@ -148,7 +149,7 @@ def execute_powershell(ctx: TaskContext, task: dict) -> dict:
     return {"success": True, "output": out[:1000]}
 
 
-def find_flag(ctx: TaskContext, task: dict) -> dict:
+def find_flag(ctx: TaskContext[WinRMState], task: dict) -> dict:
     target_ip = _authed_target(ctx)
     if not target_ip:
         return {"success": False, "output": "No WinRM session. Authenticate first."}
@@ -172,7 +173,7 @@ def find_flag(ctx: TaskContext, task: dict) -> dict:
     return {"success": True, "output": "Flag not found on common paths.\n" + "\n---\n".join(dumps)}
 
 
-def read_flag(ctx: TaskContext, task: dict) -> dict:
+def read_flag(ctx: TaskContext[WinRMState], task: dict) -> dict:
     target_ip = _authed_target(ctx)
     if not target_ip:
         return {"success": False, "output": "No WinRM session. Authenticate first."}
@@ -190,7 +191,7 @@ def read_flag(ctx: TaskContext, task: dict) -> dict:
     return {"success": True, "output": f"Output: {output[:300]}"}
 
 
-def start_webhost(ctx: TaskContext, task: dict) -> dict:
+def start_webhost(ctx: TaskContext[WinRMState], task: dict) -> dict:
     if ctx.state.webhost_running:
         return {"success": True, "output": "Webhost already running."}
     port = ctx.state.webhost_port
@@ -201,7 +202,7 @@ def start_webhost(ctx: TaskContext, task: dict) -> dict:
     return {"success": False, "output": "Failed to start webhost."}
 
 
-def done(ctx: TaskContext, task: dict) -> dict:
+def done(ctx: TaskContext[WinRMState], task: dict) -> dict:
     return {"success": True, "output": "Planner signaled completion."}
 
 
