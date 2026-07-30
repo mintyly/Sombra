@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sombra"
+version = "1.0.0"
+description = "Blind autonomous LLM red-team harness (planner/executor over an isolated cyber range)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "June Ong", email = "june@june.ong" }]
+keywords = ["red-team", "llm-agent", "autonomous", "security", "cyber-range"]
+
+# Pinned so a clone reproduces the environment instead of relying on
+# "the system python on earthquake happens to have openai".
+dependencies = [
+    "openai==1.51.0",
+    "pywinrm==0.4.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.3",
+    "ruff==0.6.9",
+    "mypy==1.11.2",
+]
+
+[project.scripts]
+sombra = "sombra.cli:main"
+
+[project.urls]
+Homepage = "https://june.ong"
+Repository = "https://github.com/mintyly/sombra"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true

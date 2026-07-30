@@ -1,0 +1,20 @@
+# secrets — the API key is NEVER committed
+*.key
+.env
+config.local.json
+
+# run artifacts
+runs/
+*.jsonl
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+.venv/
+venv/
