@@ -8,8 +8,8 @@ fifth agent is a spec entry, not another 600-line copy of the loop.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from typing import Callable, Sequence
 
 from . import prompts
 from .audit import AuditLog, get_logger

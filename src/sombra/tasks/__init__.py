@@ -12,8 +12,8 @@ common plumbing underneath.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Callable
 
 from ..audit import AuditLog, get_logger
 from ..config import AgentConfig

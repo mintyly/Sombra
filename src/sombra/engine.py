@@ -17,8 +17,8 @@ The loop's two non-obvious properties, both preserved from the originals:
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Sequence
 
 from .audit import AuditLog, get_logger
 from .planner import Planner

@@ -33,8 +33,8 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass, field
+from typing import Iterable
 
 # Full dotted-quad, not flanked by another digit *or dot* on either side.
 # Excluding a flanking dot as well as a flanking digit is what stops a valid

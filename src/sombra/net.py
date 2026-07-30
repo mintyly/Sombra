@@ -16,8 +16,7 @@ from __future__ import annotations
 
 import re
 import time
-from collections.abc import Callable
-from typing import Protocol
+from typing import Callable, Protocol
 
 from .scope import Scope
 
