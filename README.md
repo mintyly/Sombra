@@ -23,7 +23,9 @@ The point of the project is one variable — *how much does the agent get told?*
 pip install -e ".[dev]"     # editable, with pytest/ruff/mypy
 ```
 
-Requires Python ≥ 3.10. Runtime deps (`openai`, `pywinrm`) are pinned in `pyproject.toml`.
+Requires Python ≥ 3.8 (verified against earthquake's actual interpreters via `ast.parse(feature_version=...)` — every
+module defers its annotations with `from __future__ import annotations`, so the `X | Y` syntax used throughout never
+needs the 3.10 runtime it looks like it does). Runtime deps (`openai`, `pywinrm`) are pinned in `pyproject.toml`.
 
 ## Run
 
