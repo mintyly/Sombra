@@ -23,7 +23,7 @@ class ChatClient(Protocol):
     """The slice of the OpenAI client the planner actually uses."""
 
     class chat:  # noqa: N801 - mirrors the real client's attribute shape
-        class completions:
+        class completions:  # noqa: N801 - same reason, nested class needs its own suppression
             @staticmethod
             def create(**kwargs: Any) -> Any: ...
 
